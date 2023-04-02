@@ -1,0 +1,6 @@
+config.vim
+*.pyc
+user_tag
+search_config
+DevToolsActivePort
+Default/
