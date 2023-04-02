@@ -9,25 +9,20 @@ import sys
 def parameter_parser():
     import argparse
     parser = argparse.ArgumentParser(description="Support Args:")
-    parser.add_argument("--query",                 type=str,   default="你好",  help="data path")
+    parser.add_argument("--query",                  type=str,   default="你好",  help="data path")
     parser.add_argument("--prompt",                 type=str,   default="no",  help="data path")
+    parser.add_argument("--cookie",                 type=str,   help="data path")
+    parser.add_argument("--proxy",                  type=str,   default=""  ,  help="data path")
     return parser.parse_args()
 
 args = parameter_parser()
-
-HOME = os.environ['HOME']
-
-#os.environ['http_proxy'] = "http://172.19.57.45:3128"
-#os.environ['https_proxy'] = "http://172.19.57.45:3128"
-
 #from pyppeteer.launcher import Launcher
 #print(' '.join(Launcher(headless=True, options={'args': ['--no-sandbox']}).cmd))
 
 pyppeteer.launcher.DEFAULT_ARGS.remove("--enable-automation")
 
 async def login_yiyan():
-    browser = await launch(userDataDir=f"{HOME}/xkvim/chrome-web/", headless=False, options={'args': ['--no-sandbox', ['--proxy-server=172.19.57.45:3128']], 'defaultViewport': {'width': 1920, 'height': 1080}})
-    #browser = await launch(userDataDir="./", headless=False, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
+    browser = await launch(userDataDir=f"{args.cookie}", headless=False, options={'args': ['--no-sandbox', [f'--proxy-server={args.proxy}']], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
     await page.goto('https://yiyan.baidu.com')
@@ -53,7 +48,7 @@ async def login_yiyan():
 
 
 async def process(inp):
-    browser = await launch(userDataDir=f"{HOME}/xkvim/chrome-web/", headless=False, options={'args': ['--no-sandbox', ['--proxy-server=172.19.57.45:3128']], 'defaultViewport': {'width': 1920, 'height': 1080}})
+    browser = await launch(userDataDir=f"{args.cookie}", headless=False, options={'args': ['--no-sandbox', [f'--proxy-server={args.proxy}']], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
     await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
@@ -91,7 +86,7 @@ async def wait_output(page):
     return False
     
 async def process_loop(promote=True):
-    browser = await launch(userDataDir=f"{HOME}/xkvim/chrome-web/", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
+    browser = await launch(userDataDir=f"{args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
     await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
