@@ -5,6 +5,7 @@ import os
 import time
 from pyppeteer_stealth import stealth
 import sys
+import copy
 
 def parameter_parser():
     import argparse
@@ -13,64 +14,80 @@ def parameter_parser():
     parser.add_argument("--prompt",                 type=str,   default="no",  help="data path")
     parser.add_argument("--cookie",                 type=str,   help="data path")
     parser.add_argument("--proxy",                  type=str,   default=""  ,  help="data path")
+    parser.add_argument("--login",                  type=str,   default="no"  ,  help="data path")
     return parser.parse_args()
 
-args = parameter_parser()
-#from pyppeteer.launcher import Launcher
-#print(' '.join(Launcher(headless=True, options={'args': ['--no-sandbox']}).cmd))
-
 pyppeteer.launcher.DEFAULT_ARGS.remove("--enable-automation")
+pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-port=22")
+pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-address=0.0.0.0")
+"""
+Visit IP:22/json/list + DevToolFrontendURL to access the remote debugging, useful for login and record cookies.
+you can use proxy.py if you want to access it from outside.
+"""
+pyppeteer.__chromium_revision__ = '1000260' # can't remote debug with default version, this version is 2022.10 version
 
-async def login_yiyan():
-    browser = await launch(userDataDir=f"{args.cookie}", headless=False, options={'args': ['--no-sandbox', [f'--proxy-server={args.proxy}']], 'defaultViewport': {'width': 1920, 'height': 1080}})
+cmd_args = parameter_parser()
+#from pyppeteer.launcher import Launcher
+#print(' '.join(Launcher(userDataDir=f"./", headless=False, dumpio=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}}).cmd))
+
+def do_every(total, every):
+    for i in range(int(total / every)): 
+        time.sleep(every)
+        yield i
+
+async def interact():
+    """
+    Console debug and interact with the browser, contain the following commands:
+        - click selector
+        - input selector text
+        - show 
+        - sleep
+        - quit
+    the output is a screenshot of the page.
+    Useful for debug while RemoteDebugging is not available.
+    """
+    env = copy.deepcopy(os.environ)
+    env.update({
+        "http_proxy": "http://172.19.57.45:3128", 
+        "https_proxy": "http://172.19.57.45:3128"})
+
+    browser = await launch(userDataDir=f"{cmd_args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
-    await page.goto('https://yiyan.baidu.com')
-    #elems = await page.JJ('div.Qyj8AoQa')  # indirectly cause a navigation
-    #await elems[0].click()
-    time.sleep(5.0)
-    element = await page.querySelector('div.Qyj8AoQa')
-    await element.click()
-    title = await page.evaluate('(element) => element.textContent', element)
-    print(title)
-    await element.click()
-    await element.click()
-    time.sleep(5.0)
-    time.sleep(10.0)
-    # 将这个文件通过 python upload 投射到服务器上，使用百度入流扫码登录
-    await page.screenshot({'path': 'example.png'})
-    breakpoint() 
-    time.sleep(20.0)
-    # 查看是否登录成功
-    await page.screenshot({'path': 'example.png'})
+    print ("start navigate to https://yiyan.baidu.com...")
+    await page.goto('http://yiyan.baidu.com/')
+    time.sleep(10)
+
+    while True:
+        next_instruction = input("(chrome) ")
+        try:
+            if next_instruction == "quit": 
+                break
+
+            elif next_instruction == "show": 
+                pass
+
+            elif next_instruction == "sleep":
+                time.sleep(5)
+
+            elif next_instruction.startswith("click"): 
+                _, selector = next_instruction.split(" ")
+                element = await page.querySelector(f'{selector}')
+                await element.click()
+                time.sleep(5)
+
+            elif next_instruction.startswith("input"): 
+                _, selector, text = next_instruction.split(" ")
+                await page.type(f"{selector}", f"{text}", delay=5)
+                time.sleep(5)
+
+            else: 
+                print("Invalid key, just show.")
+        except Exception as e:
+            print(f"Error {e}, just show")
+        await page.screenshot({'path': 'example.png'})
     await browser.close()
-    #print (json)
 
-
-async def process(inp):
-    browser = await launch(userDataDir=f"{args.cookie}", headless=False, options={'args': ['--no-sandbox', [f'--proxy-server={args.proxy}']], 'defaultViewport': {'width': 1920, 'height': 1080}})
-    page = await browser.newPage()
-    await stealth(page)  # <-- Here
-    await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
-    await page.goto('https://yiyan.baidu.com')
-    time.sleep(3.0)
-    await page.click("span.dJ7XSrBC")
-    time.sleep(3.0)
-
-    # input the text and query yiyan.
-    await page.type("textarea.wBs12eIN", inp, delay=20)
-    await page.click("span.pa6BxUpp")
-    time.sleep(20.0)
-        
-    # Extract the output from the page
-    responses = await page.JJ("div.custom-html")
-    #for response in responses:
-    outputs = []
-    for response in responses: 
-        output = await page.evaluate('(element) => element.innerHTML', response)
-        outputs.append(output)
-    print(outputs[0])
-    #await page.screenshot({'path': 'example.png'})
 
 async def wait_output(page):
     tot_time = 120
@@ -86,12 +103,17 @@ async def wait_output(page):
     return False
     
 async def process_loop(promote=True):
-    browser = await launch(userDataDir=f"{args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
+    env = copy.deepcopy(os.environ)
+    env.update({
+        "http_proxy": "http://172.19.57.45:3128", 
+        "https_proxy": "http://172.19.57.45:3128"})
+    browser = await launch(userDataDir=f"{cmd_args.cookie}", env=None, headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
-    await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
+    #await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
     await page.goto('https://yiyan.baidu.com')
-    time.sleep(3.0)
+    time.sleep(5.0)
+    await page.screenshot({'path': 'example.png'})
     await page.click("span.dJ7XSrBC")
     time.sleep(3.0)
 
@@ -214,8 +236,7 @@ def test():
         lines = fp.readlines()
     print("".join(render("".join(lines))))
 
-#test()
-
-#asyncio.get_event_loop().run_until_complete(login_yiyan())
-#asyncio.get_event_loop().run_until_complete(process(args.query))
-asyncio.get_event_loop().run_until_complete(process_loop(args.prompt == "yes"))
+if cmd_args.login == "yes": 
+    asyncio.get_event_loop().run_until_complete(interact())
+else: 
+    asyncio.get_event_loop().run_until_complete(process_loop(cmd_args.prompt == "yes"))
