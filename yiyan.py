@@ -7,6 +7,9 @@ from pyppeteer_stealth import stealth
 import sys
 import copy
 
+pyppeteer.__chromium_revision__ = '1000260' # can't remote debug with default version, this version is 2022.10 version
+pyppeteer.launcher.DEFAULT_ARGS.remove("--enable-automation")
+
 def parameter_parser():
     import argparse
     parser = argparse.ArgumentParser(description="Support Args:")
@@ -15,20 +18,19 @@ def parameter_parser():
     parser.add_argument("--cookie",                 type=str,   help="data path")
     parser.add_argument("--proxy",                  type=str,   default=""  ,  help="data path")
     parser.add_argument("--login",                  type=str,   default="no"  ,  help="data path")
+    parser.add_argument("--debug",                  type=str,   default="no"  ,  help="data path")
     return parser.parse_args()
 
-pyppeteer.launcher.DEFAULT_ARGS.remove("--enable-automation")
-pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-port=22")
-pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-address=0.0.0.0")
-"""
-Visit IP:22/json/list + DevToolFrontendURL to access the remote debugging, useful for login and record cookies.
-you can use proxy.py if you want to access it from outside.
-"""
-pyppeteer.__chromium_revision__ = '1000260' # can't remote debug with default version, this version is 2022.10 version
-
 cmd_args = parameter_parser()
-#from pyppeteer.launcher import Launcher
-#print(' '.join(Launcher(userDataDir=f"./", headless=False, dumpio=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}}).cmd))
+if cmd_args.debug == "yes": 
+    """
+    Visit IP:22/json/list + DevToolFrontendURL to access the remote debugging, useful for login and record cookies.
+    you can use proxy.py if you want to access it from outside.
+    """
+    pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-port=22")
+    pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-address=0.0.0.0")
+    from pyppeteer.launcher import Launcher
+    print(' '.join(Launcher(userDataDir=f"{cmd_args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}}).cmd))
 
 def do_every(total, every):
     for i in range(int(total / every)): 
@@ -103,19 +105,13 @@ async def wait_output(page):
     return False
     
 async def process_loop(promote=True):
-    env = copy.deepcopy(os.environ)
-    env.update({
-        "http_proxy": "http://172.19.57.45:3128", 
-        "https_proxy": "http://172.19.57.45:3128"})
-    browser = await launch(userDataDir=f"{cmd_args.cookie}", env=None, headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
+    browser = await launch(userDataDir=f"{cmd_args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}})
     page = await browser.newPage()
     await stealth(page)  # <-- Here
-    #await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
+    await page.evaluate("Object.defineProperties(navigator,{ webdriver:{ get: () => false } })", force_expr=True)
     await page.goto('https://yiyan.baidu.com')
     time.sleep(5.0)
     await page.screenshot({'path': 'example.png'})
-    await page.click("span.dJ7XSrBC")
-    time.sleep(3.0)
 
     # input the text and query yiyan.
     while True:
@@ -160,8 +156,9 @@ class MyHTMLParser(HTMLParser):
         self.stack = []
         
     def wrapper(self, tag, attrs, tmp_out):
-        if 'class' in attrs and attrs['class'] in ['code-wrapper', 'code-copy-text', 'code-lang']: 
+        if 'class' in attrs and attrs['class'] in ['code-copy-text', 'code-lang']: 
             return []
+        if tag == "tr": tmp_out.append("\n")
         if tag == "p": tmp_out.append("\n")
         if tag == "code": 
             if 'class' in attrs and 'language' in attrs['class']:
