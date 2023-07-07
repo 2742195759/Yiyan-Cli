@@ -14,7 +14,7 @@ import socket
 import select
 import time
 
-server = "host:ip" # the forward server
+server = "127.0.0.1:10000" # the forward server
 
 def debug(tag, msg):
     print('[%s] %s' % (tag, msg))
@@ -117,8 +117,8 @@ class SimpleHttpProxy(object):
 
 
         # 修正http请求数据
-        tmp = b'%s//%s' % (http_packet.req_uri.split(b'//')[0], )
-        req_data = req_data.replace(tmp, b'')
+        #breakpoint() 
+        req_data = req_data.replace(http_packet.host, b'')
 
         # HTTP
         server_host = server.split(":")[0]
@@ -218,7 +218,7 @@ class SimpleHttpProxy(object):
 
 if __name__ == '__main__':
     # 默认参数
-    host, port, listen, bufsize, delay = '0.0.0.0', 8080, 10, 8, 1
+    host, port, listen, bufsize, delay = '0.0.0.0', 8086, 10, 8, 1
     
     import sys, getopt
     try:
@@ -243,4 +243,3 @@ if __name__ == '__main__':
     
     # 启动代理
     SimpleHttpProxy(host, port, listen, bufsize, delay).start()
-

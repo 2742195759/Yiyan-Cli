@@ -7,6 +7,7 @@ from pyppeteer_stealth import stealth
 import sys
 import copy
 
+# NOTE: update the chromium version.
 pyppeteer.__chromium_revision__ = '1000260' # can't remote debug with default version, this version is 2022.10 version
 pyppeteer.launcher.DEFAULT_ARGS.remove("--enable-automation")
 
@@ -21,13 +22,27 @@ def parameter_parser():
     parser.add_argument("--debug",                  type=str,   default="no"  ,  help="data path")
     return parser.parse_args()
 
+# NOTE: change this when web version update.
+text_area_class = "wBs12eIN"
+send_area_class = "VAtmtpqL"
+
 cmd_args = parameter_parser()
 if cmd_args.debug == "yes": 
     """
-    Visit IP:22/json/list + DevToolFrontendURL to access the remote debugging, useful for login and record cookies.
-    you can use proxy.py if you want to access it from outside.
+    Step1: 
+        Visit http://10.255.125.22:8086/json/list to get frontendURI
+    Step2: 
+        Visit http://10.255.125.22:8086/{DevToolFrontendURL} to access the remote debugging. 
+
+    Useful for login and record cookies.
+
+    If you want to use http_proxy.py and you want to access it from outside: 
+    Step1: 
+        change: search `server` and change it to `127.0.0.1:10000` if your chrome listen in 0.0.0.0:10000
+    Step2: 
+        add listen port and expose it by docker.
     """
-    pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-port=22")
+    pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-port=10000")
     pyppeteer.launcher.DEFAULT_ARGS.append("--remote-debugging-address=0.0.0.0")
     from pyppeteer.launcher import Launcher
     print(' '.join(Launcher(userDataDir=f"{cmd_args.cookie}", headless=True, options={'args': ['--no-sandbox'], 'defaultViewport': {'width': 1920, 'height': 1080}}).cmd))
@@ -96,7 +111,7 @@ async def wait_output(page):
     loop_time = 0.3
     for i in range(int(tot_time / loop_time)):
         time.sleep(loop_time)
-        element = await page.querySelector(".pa6BxUpp")
+        element = await page.querySelector(f".{send_area_class}")
         display_state = await page.evaluate("""(element) => window.getComputedStyle(element).display""", element)
         if display_state != "none": 
             # if display_state == none: generating.
@@ -125,8 +140,8 @@ async def process_loop(promote=True):
         if inp == "quit": 
             break
 
-        await page.type("textarea.wBs12eIN", inp, delay=5)
-        await page.click("span.pa6BxUpp")
+        await page.type(f"textarea.{text_area_class}", inp, delay=5)
+        await page.click(f"span.{send_area_class}")
         time.sleep(3.0)
         
         if await wait_output(page) == False: 
